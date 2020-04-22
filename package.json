@@ -1,0 +1,42 @@
+{
+  "name": "game-loop",
+  "version": "0.0.1",
+  "main": "build/cjs/index.js",
+  "module": "build/index.js",
+  "types": "build/index.d.ts",
+  "scripts": {
+    "start": "node build/index.js",
+    "clean": "rm -rf build",
+    "build": "npm run clean && tsc && tsc --m commonjs --outDir build/cjs/ --declaration false",
+    "build:watch": "npm run clean && tsc -w && tsc --outDir build/cjs --m commonjs --declaraton false",
+    "test": "jest --verbose",
+    "test:watch": "jest --watch",
+    "test:debug": "node --inspect-brk=0.0.0.0 node_modules/jest/bin/jest.js --runInBand --config jest.config.js",
+    "publish": "npm run build && npm publish --access=public"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@types/dedent": "^0.7.0",
+    "@types/read": "0.0.28",
+    "ts-nameof": "^4.2.2",
+    "typed-event-emitter": "^2.0.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^25.2.1",
+    "@types/node": "^13.11.1",
+    "@types/ts-nameof": "^4.2.1",
+    "jest": "^25.3.0",
+    "ts-jest": "^25.3.1",
+    "ts-node-register": "^1.0.0",
+    "tslint": "^6.1.1",
+    "tslint-clean-code": "^0.2.10",
+    "typescript": "^3.8.3"
+  },
+  "description": "",
+  "engines": {
+    "node": "8.9.3",
+    "npm": "5.6.0"
+  }
+}
