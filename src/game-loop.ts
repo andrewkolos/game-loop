@@ -18,29 +18,45 @@ export class GameLoop extends EventEmitter {
    */
   public onGameStepDropped = this.registerEvent<GameStepDroppedHandler>();
 
+  /**
+   * Whether or not the loop is running.
+   */
+  public get isRunning() {
+    return this._isRunning;
+  }
+
+  /**
+   * How much time is remaining after the most recent step, represented as an
+   * alpha value between the time of the last step and the time of the next step.
+   * This is useful as a blending factor for interpolating game states to get
+   * a new state for rendering.
+   */
+  public get residualDelayAlpha() {
+    return this.residualDelayMs / this.stepIntervalMs;
+  }
+
   private stepRate: number;
-
-  private previousStepTime: number = 0;
-  private residualDelay: number = 0;
+  private previousStepTime: number = currentTime();
+  private residualDelayMs: number = 0;
   private delayClamp: number;
-  private tickIntervalId?: number;
+  private _isRunning: boolean = false;
 
-  private readonly stepHandler: () => void;
+  private readonly stepFn: () => void;
 
-  private get msPerStep() {
+  private get stepIntervalMs() {
     return 1000 / this.stepRate;
   }
 
   /**
    * Creates a game loop. The loop is stopped by default.
-   * @param gameUpdateFn Function that advances the state of the game by one game step.
+   * @param stepFn Function that advances the state of the game by one game step.
    * @param stepRateHz How often a game step occurs, in hertz.
    * @param [opts] Additional options.
    */
-  public constructor(gameUpdateFn: () => void, stepRateHz: number, opts: GameLoopOptions = {}) {
+  public constructor(stepFn: () => void, stepRateHz: number, opts: GameLoopOptions = {}) {
     super();
     const completeOpts = provideDefaultsForMissingOpts();
-    this.stepHandler = gameUpdateFn;
+    this.stepFn = stepFn;
     this.stepRate = stepRateHz;
     this.delayClamp = completeOpts.delayClampMs;
 
@@ -58,8 +74,9 @@ export class GameLoop extends EventEmitter {
    */
   public start(): this {
     this.stop();
-    this.tickIntervalId = setInterval(() => this.update(), this.stepRate) as any;
     this.previousStepTime = currentTime();
+    this._isRunning = true;
+    this.update();
 
     return this;
   }
@@ -68,38 +85,40 @@ export class GameLoop extends EventEmitter {
    * Stops the loop.
    */
   public stop(): void {
-    clearInterval(this.tickIntervalId);
-  }
-
-  /**
-   * Determines whether the game is running.
-   * @returns true if the game is running.
-   */
-  public isRunning() {
-    return this.tickIntervalId != null;
+    this._isRunning = false;
   }
 
   private update() {
-    const now = currentTime();
+    if (!this._isRunning) {
+      // This update was enqueued before the stop method was called.
+      return;
+    }
 
-    this.residualDelay += now - this.previousStepTime;
+    this.queueNextIteration();
+
+    const now = currentTime();
+    this.residualDelayMs += now - this.previousStepTime;
     this.previousStepTime = now;
 
     this.clampResidualDelay();
 
-    while (this.residualDelay >= this.msPerStep) {
-      this.stepHandler();
-      this.residualDelay -= this.msPerStep;
+    while (this.residualDelayMs >= this.stepIntervalMs) {
+      this.stepFn();
+      this.residualDelayMs -= this.stepIntervalMs;
     }
 
-    this.emit(this.onUpdate, this.residualDelay);
+    this.emit(this.onUpdate, this.residualDelayAlpha);
   }
 
   private clampResidualDelay() {
-    if (this.residualDelay > this.delayClamp) {
-      this.emit(this.onGameStepDropped, this.residualDelay - this.delayClamp);
-      this.residualDelay = Math.min(this.residualDelay, this.delayClamp);
+    if (this.residualDelayMs > this.delayClamp) {
+      this.emit(this.onGameStepDropped, this.residualDelayMs - this.delayClamp);
+      this.residualDelayMs = Math.min(this.residualDelayMs, this.delayClamp);
     }
+  }
+
+  private queueNextIteration() {
+    setTimeout(() => this.update(), this.stepIntervalMs);
   }
 }
 
